@@ -7,7 +7,9 @@ const morgan = require('morgan');
 // are automatically loaded.
 require('dotenv').config();
 
+const {ALERT_FROM_EMAIL, ALERT_FROM_NAME, ALERT_TO_EMAIL} = process.env;
 const {logger} = require('./utilities/logger');
+const {sendEmail} = require('./emailer');
 // these are custom errors we've created
 const {FooError, BarError, BizzError} = require('./errors');
 
@@ -27,10 +29,24 @@ app.use(morgan('common', {stream: logger.stream}));
 // for any GET request, we'll run our `russianRoulette` function
 app.get('*', russianRoulette);
 
+const emailErrors = (err, req, res, next) => {
+  if (err instanceof FooError || err instanceof BarError) {
+    logger.info(`sending alert error e-mail to ${ALERT_TO_EMAIL}`);
+    const emailData = {
+      from: ALERT_FROM_EMAIL,
+      to: ALERT_TO_EMAIL,
+      subject: `SERVICE ALERT: ${err.name}`,
+      text: `O DAMN its a MESS!. Here's what we know:\n\n${err.stack}`
+    };
+    sendEmail(emailData);
+  }
+  next();
+}
+
 // YOUR MIDDLEWARE FUNCTION should be activated here using
 // `app.use()`. It needs to come BEFORE the `app.use` call
 // below, which sends a 500 and error message to the client
-
+app.use(emailErrors);
 app.use((err, req, res, next) => {
   logger.error(err);
   res.status(500).json({error: 'Something went wrong'}).end();
